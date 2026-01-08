@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEO RPS</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+            overflow: hidden; /* Prevent scroll on modal open */
+        }
+        .animate-pop { animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .animate-slide-up { animation: slideUp 0.3s ease-out; }
+        @keyframes pop { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes slideUp { 0% { transform: translateY(100%); } 100% { transform: translateY(0); } }
+        .neon-text { text-shadow: 0 0 5px rgba(255, 255, 255, 0.5), 0 0 10px rgba(255, 255, 255, 0.3); }
+        .glass { background: rgba(30, 41, 59, 0.9); backdrop-filter: blur(10px); }
+        
+        /* Scrollbar customizada */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- CONSTANTS & CONFIGURATION ---
+
+        const MOVES = {
+            GOOD: { 
+                id: 'GOOD', label: 'Good', icon: '👍', cost: 9, 
+                beats: ['ROCK', 'SCISSORS', 'PAPER', 'CLAP'],
+                desc: 'O mais caro e balanceado.',
+                evoDesc: 'Vitória: Cura +1 Vida.',
+            },
+            ROCK: { 
+                id: 'ROCK', label: 'Rock', icon: '✊', cost: 2, 
+                beats: ['CURSE', 'SCISSORS', 'BAD', 'CLAP'],
+                desc: 'Defensivo e barato.',
+                evoDesc: 'Derrota: Se perder, reduz o dano sofrido em 1.',
+            },
+            CURSE: { 
+                id: 'CURSE', label: 'Curse', icon: '🖕', cost: 7, 
+                beats: ['SCISSORS', 'NERD', 'PAPER', 'GOOD', 'CLAP'],
+                desc: 'Agressivo.',
+                evoDesc: 'Ao jogar: Oponente perde 1 Vida. Próxima rodada: Você perde $4.',
+            },
+            SCISSORS: { 
+                id: 'SCISSORS', label: 'Scissors', icon: '✌️', cost: 4, 
+                beats: ['NERD', 'PAPER', 'BAD', 'CLAP'],
+                desc: 'Sabotador.',
+                evoDesc: 'Próxima rodada: Oponente perde $4 no início.',
+            },
+            NERD: { 
+                id: 'NERD', label: 'Nerd', icon: '☝️', cost: 6, 
+                beats: ['PAPER', 'HORNS', 'ROCK', 'GOOD', 'CLAP'],
+                desc: 'Investimento.',
+                evoDesc: 'Próxima rodada: Você ganha +$4 no início.',
+            },
+            PAPER: { 
+                id: 'PAPER', label: 'Paper', icon: '✋', cost: 3, 
+                beats: ['HORNS', 'ROCK', 'BAD', 'CLAP'],
+                desc: 'Tático.',
+                evoDesc: 'Ao jogar: Cura +1 Vida. Próxima rodada: Você perde $4.',
+            },
+            CLAP: { 
+                id: 'CLAP', label: 'Clap', icon: '👏', cost: 0, 
+                beats: [],
+                desc: 'Única opção se estiver devendo. Perde para tudo.',
+                evoDesc: 'Próxima rodada: Você ganha +$10 no início.',
+            },
+            HORNS: { 
+                id: 'HORNS', label: 'Horns', icon: '🤘', cost: 8, 
+                beats: ['ROCK', 'CURSE', 'SCISSORS', 'GOOD', 'CLAP'],
+                desc: 'Heavy Metal Damage.',
+                evoDesc: 'Vitória: Causa +1 de dano extra ao oponente.',
+            },
+            BAD: { 
+                id: 'BAD', label: 'Bad', icon: '👎', cost: 10, 
+                beats: ['GOOD', 'CURSE', 'NERD', 'HORNS', 'CLAP'],
+                desc: 'Caro e Vingativo.',
+                evoDesc: 'Derrota: Se perder, o oponente também toma 1 de dano.',
+            }
+        };
+
+        const INITIAL_LIVES = 9;
+        const ROUND_INCOME = 5;
+
+        // --- COMPONENTS ---
+
+        function Button({ children, onClick, disabled, className = '', variant = 'primary' }) {
+            const baseStyle = "px-4 py-3 rounded-lg font-bold transition-all transform active:scale-95 shadow-lg border-b-4 ";
+            const variants = {
+                primary: "bg-blue-600 hover:bg-blue-500 border-blue-800 text-white disabled:bg-slate-700 disabled:border-slate-800 disabled:text-slate-500",
+                danger: "bg-red-600 hover:bg-red-500 border-red-800 text-white",
+                success: "bg-green-600 hover:bg-green-500 border-green-800 text-white",
+                warning: "bg-yellow-500 hover:bg-yellow-400 border-yellow-700 text-black",
+                neutral: "bg-slate-700 hover:bg-slate-600 border-slate-900 text-gray-200"
+            };
+
+            return (
+                <button 
+                    onClick={onClick} 
+                    disabled={disabled} 
+                    className={`${baseStyle} ${variants[variant]} ${className}`}
+                >
+                    {children}
+                </button>
+            );
+        }
+
+        function StatCard({ label, value, icon, colorClass, highlight }) {
+            return (
+                <div className={`flex flex-col items-center bg-slate-800 p-2 rounded-lg border border-slate-700 w-24 transition-all duration-300 ${highlight ? 'ring-2 ring-red-500 bg-red-900/20' : ''}`}>
+                    <span className="text-xs uppercase text-slate-400 font-bold">{label}</span>
+                    <div className={`text-2xl font-black ${colorClass} flex items-center gap-1`}>
+                        {icon} {value}
+                    </div>
+                </div>
+            );
+        }
+
+        function EvoBadge({ progress, isReady }) {
+            if (isReady) {
+                return <span className="absolute -top-2 -right-2 bg-yellow-400 text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full shadow-md animate-pulse z-10">EVO</span>;
+            }
+            if (progress > 0) {
+                return <span className="absolute -top-2 -right-2 bg-slate-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full z-10">{progress}/2</span>;
+            }
+            return null;
+        }
+
+        function MoveCard({ move, onClick, onInfo, disabled, isEvoReady, playerMoney, isDebtMode }) {
+            const canAfford = playerMoney >= move.cost;
+            
+            // Lógica de bloqueio visual
+            const blockedByDebt = isDebtMode && move.id !== 'CLAP';
+            const blockedByMoney = !isDebtMode && !canAfford;
+            const isBlocked = disabled || blockedByDebt || blockedByMoney;
+
+            return (
+                <div className="relative group">
+                    <button 
+                        onClick={() => !isBlocked && onClick(move)}
+                        disabled={isBlocked}
+                        className={`
+                            w-full flex flex-col items-center justify-center p-2 rounded-xl border-2 transition-all h-28 relative overflow-hidden
+                            ${isBlocked 
+                                ? 'bg-slate-900 border-slate-800 opacity-60 grayscale cursor-not-allowed' 
+                                : isEvoReady 
+                                    ? 'bg-gradient-to-br from-indigo-900 to-purple-900 border-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.3)] hover:scale-[1.02]'
+                                    : 'bg-slate-800 border-slate-600 hover:border-slate-400 hover:bg-slate-750 active:scale-95'
+                            }
+                        `}
+                    >
+                        <EvoBadge progress={0} isReady={isEvoReady} />
+                        <div className="text-3xl mb-1 drop-shadow-md">{move.icon}</div>
+                        <div className="font-bold text-sm leading-tight text-center">{move.label}</div>
+                        <div className={`text-xs font-mono mt-1 ${isBlocked ? 'text-slate-500' : 'text-green-400 font-bold'}`}>
+                            ${move.cost}
+                        </div>
+                        {isEvoReady && <div className="text-[9px] text-yellow-300 mt-1 font-bold tracking-wider">EVO READY</div>}
+                    </button>
+                    
+                    {/* Info Button */}
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onInfo(move); }}
+                        className="absolute top-1 left-1 w-6 h-6 flex items-center justify-center rounded-full bg-slate-700/80 hover:bg-blue-600 text-white text-xs font-serif italic border border-slate-600 z-20"
+                        title="Ver detalhes"
+                    >
+                        i
+                    </button>
+                </div>
+            );
+        }
+
+        function InfoModal({ move, onClose }) {
+            if (!move) return null;
+
+            // Calcular fraquezas dinamicamente
+            const weaknesses = Object.values(MOVES).filter(m => m.beats.includes(move.id));
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
+                    <div className="bg-slate-800 w-full max-w-md rounded-2xl border border-slate-600 shadow-2xl overflow-hidden animate-slide-up" onClick={e => e.stopPropagation()}>
+                        <div className="p-4 bg-gradient-to-r from-slate-900 to-slate-800 border-b border-slate-700 flex justify-between items-center">
+                            <div className="flex items-center gap-3">
+                                <span className="text-4xl">{move.icon}</span>
+                                <div>
+                                    <h3 className="text-xl font-bold text-white">{move.label}</h3>
+                                    <span className="text-green-400 font-mono font-bold">${move.cost}</span>
+                                </div>
+                            </div>
+                            <button onClick={onClose} className="bg-slate-700 hover:bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center">✕</button>
+                        </div>
+                        
+                        <div className="p-5 space-y-4 text-sm text-slate-300 max-h-[70vh] overflow-y-auto">
+                            <p className="italic text-slate-400">{move.desc}</p>
+                            
+                            {/* Regras de Combate */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-green-900/30 p-3 rounded-lg border border-green-800/50">
+                                    <h4 className="text-green-400 font-bold mb-2 flex items-center gap-1 text-xs uppercase">✅ Vence</h4>
+                                    <div className="flex flex-wrap gap-1">
+                                        {move.beats.length > 0 ? move.beats.map(id => (
+                                            <span key={id} className="text-lg" title={MOVES[id].label}>{MOVES[id].icon}</span>
+                                        )) : <span className="text-xs text-slate-500">Ninguém</span>}
+                                    </div>
+                                </div>
+                                
+                                <div className="bg-red-900/30 p-3 rounded-lg border border-red-800/50">
+                                    <h4 className="text-red-400 font-bold mb-2 flex items-center gap-1 text-xs uppercase">❌ Perde para</h4>
+                                    <div className="flex flex-wrap gap-1">
+                                        {weaknesses.length > 0 ? weaknesses.map(m => (
+                                            <span key={m.id} className="text-lg" title={m.label}>{m.icon}</span>
+                                        )) : <span className="text-xs text-slate-500">Ninguém</span>}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Detalhes da Evolução */}
+                            <div className="bg-yellow-900/20 p-3 rounded-lg border border-yellow-700/50">
+                                <h4 className="text-yellow-400 font-bold mb-1 flex items-center gap-2">
+                                    <span className="text-lg">⚡</span> Efeito EVO
+                                </h4>
+                                <p className="text-yellow-100 text-xs leading-relaxed">{move.evoDesc}</p>
+                                <div className="mt-2 text-[10px] text-slate-500 border-t border-slate-700 pt-1">
+                                    Como ativar: {move.id === 'CLAP' ? 'Jogue 2x na partida.' : 'Vença 2x com este movimento.'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- MAIN APP COMPONENT ---
+
+        function App() {
+            // Game Phases: 'START', 'ROUND_START_LOGIC', 'P1_WAIT', 'P1_TURN', 'P2_WAIT', 'P2_TURN', 'RESOLVE', 'GAME_OVER'
+            const [phase, setPhase] = useState('START');
+            const [round, setRound] = useState(1);
+            const [viewingMove, setViewingMove] = useState(null); // Para o modal
+            
+            const [p1, setP1] = useState({ 
+                name: 'Jogador 1', 
+                lives: INITIAL_LIVES, 
+                money: 0, 
+                evos: {}, // { MOVE_ID: count }
+                nextEffects: [] // Array of { type: 'MONEY' | 'LIFE', value: number }
+            });
+            
+            const [p2, setP2] = useState({ 
+                name: 'Jogador 2', 
+                lives: INITIAL_LIVES, 
+                money: 0, 
+                evos: {}, 
+                nextEffects: [] 
+            });
+
+            const [p1Move, setP1Move] = useState(null); // { moveId, isEvo }
+            const [p2Move, setP2Move] = useState(null);
+            const [logs, setLogs] = useState([]);
+
+            const getMoveData = (moveObj) => {
+                if(!moveObj) return null;
+                return { ...MOVES[moveObj.moveId], isEvo: moveObj.isEvo };
+            };
+
+            const startGame = () => {
+                setP1({ name: 'Jogador 1', lives: INITIAL_LIVES, money: 0, evos: {}, nextEffects: [] });
+                setP2({ name: 'Jogador 2', lives: INITIAL_LIVES, money: 0, evos: {}, nextEffects: [] });
+                setRound(1);
+                setLogs(['Jogo Iniciado!', 'Cada jogador recebe $5 por rodada.']);
+                setPhase('ROUND_START_LOGIC');
+            };
+
+            // Process Start of Round (Money & Effects)
+            useEffect(() => {
+                if (phase === 'ROUND_START_LOGIC') {
+                    const processStart = (player, setPlayer) => {
+                        let newMoney = player.money + ROUND_INCOME;
+                        let newLives = player.lives;
+                        const newLogs = [];
+
+                        // Apply pending effects
+                        const remainingEffects = [];
+                        player.nextEffects.forEach(effect => {
+                            if (effect.type === 'MONEY') {
+                                newMoney += effect.value;
+                                newLogs.push(`${player.name}: ${effect.value > 0 ? '+' : ''}${effect.value}$ (Efeito Prévio)`);
+                            }
+                            if (effect.type === 'LIFE') {
+                                newLives += effect.value;
+                            }
+                        });
+
+                        setPlayer(prev => ({
+                            ...prev,
+                            lives: newLives,
+                            money: newMoney,
+                            nextEffects: [] // Clear processed effects
+                        }));
+                        return newLogs;
+                    };
+
+                    processStart(p1, setP1);
+                    processStart(p2, setP2);
+                    
+                    setTimeout(() => {
+                        setPhase('P1_WAIT');
+                    }, 800);
+                }
+            }, [phase]);
+
+            const handleMoveSelection = (playerNum, moveKey) => {
+                const playerState = playerNum === 1 ? p1 : p2;
+                const setPlayerState = playerNum === 1 ? setP1 : setP2;
+                const moveData = MOVES[moveKey];
+
+                const currentEvoCount = playerState.evos[moveKey] || 0;
+                const isEvoReady = currentEvoCount >= 2;
+
+                setPlayerState(prev => ({ ...prev, money: prev.money - moveData.cost }));
+
+                const moveObject = { moveId: moveKey, isEvo: isEvoReady };
+                
+                if (playerNum === 1) {
+                    setP1Move(moveObject);
+                    setPhase('P2_WAIT');
+                } else {
+                    setP2Move(moveObject);
+                    setPhase('RESOLVE');
+                }
+            };
+
+            // Resolution Logic
+            useEffect(() => {
+                if (phase === 'RESOLVE') {
+                    const resolveGame = () => {
+                        const m1 = getMoveData(p1Move);
+                        const m2 = getMoveData(p2Move);
+                        let logEntries = [`R${round}: P1 ${m1.icon}${m1.isEvo ? '⚡' : ''} vs P2 ${m2.icon}${m2.isEvo ? '⚡' : ''}`];
+
+                        let p1DmgTaken = 0;
+                        let p2DmgTaken = 0;
+                        let p1NextEffects = [];
+                        let p2NextEffects = [];
+                        let p1Win = false;
+                        let p2Win = false;
+
+                        // 1. Determine Winner
+                        if (m1.id === m2.id) {
+                            logEntries.push("Empate! Ninguém perde vida.");
+                        } else if (m1.beats.includes(m2.id)) {
+                            p1Win = true;
+                            p2DmgTaken = 1;
+                            logEntries.push(`P1 Venceu!`);
+                        } else {
+                            p2Win = true;
+                            p1DmgTaken = 1;
+                            logEntries.push(`P2 Venceu!`);
+                        }
+
+                        // 2. Immediate Evo Effects
+                        if (m1.isEvo && m1.id === 'CURSE') {
+                            p2DmgTaken += 1;
+                            p1NextEffects.push({ type: 'MONEY', value: -4 });
+                            logEntries.push("P1 Evo Maldição: Dano extra em P2.");
+                        }
+                        if (m2.isEvo && m2.id === 'CURSE') {
+                            p1DmgTaken += 1;
+                            p2NextEffects.push({ type: 'MONEY', value: -4 });
+                            logEntries.push("P2 Evo Maldição: Dano extra em P1.");
+                        }
+
+                        if (m1.isEvo && m1.id === 'PAPER') {
+                            setP1(prev => ({ ...prev, lives: prev.lives + 1 }));
+                            p1NextEffects.push({ type: 'MONEY', value: -4 });
+                            logEntries.push("P1 Evo Papel: Recuperou 1 vida.");
+                        }
+                        if (m2.isEvo && m2.id === 'PAPER') {
+                            setP2(prev => ({ ...prev, lives: prev.lives + 1 }));
+                            p2NextEffects.push({ type: 'MONEY', value: -4 });
+                            logEntries.push("P2 Evo Papel: Recuperou 1 vida.");
+                        }
+
+                        // 3. Result-Based Evo Effects
+                        if (p1Win && m1.isEvo && m1.id === 'GOOD') {
+                            setP1(prev => ({ ...prev, lives: prev.lives + 1 }));
+                            logEntries.push("P1 Evo Good: Vitória curativa!");
+                        }
+                        if (p2Win && m2.isEvo && m2.id === 'GOOD') {
+                            setP2(prev => ({ ...prev, lives: prev.lives + 1 }));
+                            logEntries.push("P2 Evo Good: Vitória curativa!");
+                        }
+
+                        if (p1Win && m1.isEvo && m1.id === 'HORNS') {
+                            p2DmgTaken += 1;
+                            logEntries.push("P1 Evo Horns: Dano extra!");
+                        }
+                        if (p2Win && m2.isEvo && m2.id === 'HORNS') {
+                            p1DmgTaken += 1;
+                            logEntries.push("P2 Evo Horns: Dano extra!");
+                        }
+
+                        if (p2Win && m1.isEvo && m1.id === 'BAD') {
+                             p2DmgTaken += 1; 
+                             logEntries.push("P1 Evo Bad: Espinhos! P2 sofreu dano.");
+                        }
+                        if (p1Win && m2.isEvo && m2.id === 'BAD') {
+                             p1DmgTaken += 1;
+                             logEntries.push("P2 Evo Bad: Espinhos! P1 sofreu dano.");
+                        }
+
+                        if (p2Win && m1.isEvo && m1.id === 'ROCK') {
+                            p1DmgTaken = Math.max(0, p1DmgTaken - 1);
+                            logEntries.push("P1 Evo Rock: Dano reduzido.");
+                        }
+                        if (p1Win && m2.isEvo && m2.id === 'ROCK') {
+                            p2DmgTaken = Math.max(0, p2DmgTaken - 1);
+                            logEntries.push("P2 Evo Rock: Dano reduzido.");
+                        }
+
+                        // 4. Future Economy Effects
+                        if (m1.isEvo && m1.id === 'SCISSORS') p2NextEffects.push({ type: 'MONEY', value: -4 });
+                        if (m2.isEvo && m2.id === 'SCISSORS') p1NextEffects.push({ type: 'MONEY', value: -4 });
+
+                        if (m1.isEvo && m1.id === 'NERD') p1NextEffects.push({ type: 'MONEY', value: 4 });
+                        if (m2.isEvo && m2.id === 'NERD') p2NextEffects.push({ type: 'MONEY', value: 4 });
+
+                        if (m1.isEvo && m1.id === 'CLAP') p1NextEffects.push({ type: 'MONEY', value: 10 });
+                        if (m2.isEvo && m2.id === 'CLAP') p2NextEffects.push({ type: 'MONEY', value: 10 });
+
+                        // 5. Apply Damage
+                        setP1(prev => ({ ...prev, lives: prev.lives - p1DmgTaken, nextEffects: [...prev.nextEffects, ...p1NextEffects] }));
+                        setP2(prev => ({ ...prev, lives: prev.lives - p2DmgTaken, nextEffects: [...prev.nextEffects, ...p2NextEffects] }));
+
+                        // 6. Update Evo Counters
+                        const updateEvos = (player, move, isWinner) => {
+                            const newEvos = { ...player.evos };
+                            
+                            if (move.isEvo) {
+                                newEvos[move.id] = 0;
+                            } else {
+                                if (move.id === 'CLAP') {
+                                    newEvos['CLAP'] = (newEvos['CLAP'] || 0) + 1;
+                                } else if (isWinner) {
+                                    newEvos[move.id] = (newEvos[move.id] || 0) + 1;
+                                }
+                            }
+                            return newEvos;
+                        };
+
+                        setP1(prev => ({ ...prev, evos: updateEvos(prev, m1, p1Win) }));
+                        setP2(prev => ({ ...prev, evos: updateEvos(prev, m2, p2Win) }));
+
+                        setLogs(prev => [...logEntries, ...prev]);
+                    };
+
+                    resolveGame();
+                }
+            }, [phase]);
+
+            // Golden Rule Check
+            useEffect(() => {
+                if (phase === 'RESOLVE') {
+                    if (p1.lives <= 0 && p2.lives <= 0) {
+                        setLogs(prev => ["REGRA DE OURO: Morte Dupla! +1 Vida para ambos.", ...prev]);
+                        setP1(prev => ({...prev, lives: lives + 1}));
+                        setP2(prev => ({...prev, lives: lives + 1}));
+                    }
+                }
+            }, [p1.lives, p2.lives, phase]);
+
+            const nextRound = () => {
+                if (p1.lives <= 0 || p2.lives <= 0) {
+                    setPhase('GAME_OVER');
+                } else {
+                    setRound(r => r + 1);
+                    setPhase('ROUND_START_LOGIC');
+                }
+            };
+
+            // --- RENDER HELPERS ---
+
+            const renderMoves = (playerNum) => {
+                const playerState = playerNum === 1 ? p1 : p2;
+                const isDebtMode = playerState.money < 0;
+
+                return (
+                    <div className="grid grid-cols-3 gap-2 mt-4 pb-20">
+                        {Object.values(MOVES).map(move => {
+                            const currentEvo = playerState.evos[move.id] || 0;
+                            const isReady = currentEvo >= 2;
+                            return (
+                                <MoveCard 
+                                    key={move.id} 
+                                    move={move} 
+                                    playerMoney={playerState.money}
+                                    isEvoReady={isReady}
+                                    isDebtMode={isDebtMode}
+                                    onClick={(m) => handleMoveSelection(playerNum, m.id)}
+                                    onInfo={(m) => setViewingMove(m)}
+                                />
+                            );
+                        })}
+                    </div>
+                );
+            };
+
+            // --- SCREENS ---
+
+            if (phase === 'START') {
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center space-y-8 animate-pop">
+                        <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500 neon-text">
+                            NEO RPS
+                        </h1>
+                        <div className="glass p-6 rounded-xl border border-slate-700 max-w-sm w-full shadow-2xl">
+                            <p className="mb-6 text-slate-300">
+                                Duelo tático de recursos e evolução.
+                            </p>
+                            <div className="space-y-3 mb-8">
+                                <div className="flex items-center gap-3 text-left bg-slate-800/50 p-2 rounded">
+                                    <span className="text-2xl">❤️</span>
+                                    <div className="text-sm text-slate-400"><strong className="text-white">9 Vidas</strong><br/>Acabou, perdeu.</div>
+                                </div>
+                                <div className="flex items-center gap-3 text-left bg-slate-800/50 p-2 rounded">
+                                    <span className="text-2xl">💰</span>
+                                    <div className="text-sm text-slate-400"><strong className="text-white">$5 por rodada</strong><br/>Para pagar custos de ataque.</div>
+                                </div>
+                                <div className="flex items-center gap-3 text-left bg-slate-800/50 p-2 rounded">
+                                    <span className="text-2xl">⚡</span>
+                                    <div className="text-sm text-slate-400"><strong className="text-white">Evolução</strong><br/>Vença 2x com o mesmo golpe.</div>
+                                </div>
+                            </div>
+                            <Button onClick={startGame} className="w-full text-lg py-4 shadow-blue-900/50 shadow-lg">JOGAR AGORA</Button>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (phase === 'GAME_OVER') {
+                const winner = p1.lives > 0 ? p1.name : (p2.lives > 0 ? p2.name : "Ninguém");
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center space-y-6 animate-pop">
+                        <h2 className="text-5xl font-black text-white drop-shadow-lg">FIM DE JOGO</h2>
+                        <div className="glass p-8 rounded-2xl w-full max-w-sm">
+                            <div className="text-sm text-slate-400 uppercase tracking-widest mb-2">Vencedor</div>
+                            <div className="text-4xl text-yellow-400 font-bold mb-8 animate-bounce">{winner}</div>
+                            
+                            <div className="flex justify-between border-t border-slate-700 pt-6">
+                                <div className="text-center">
+                                    <div className="text-xs text-slate-500 mb-1">JOGADOR 1</div>
+                                    <div className={`text-2xl font-bold ${p1.lives > 0 ? 'text-green-400' : 'text-red-500'}`}>{p1.lives} HP</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-xs text-slate-500 mb-1">JOGADOR 2</div>
+                                    <div className={`text-2xl font-bold ${p2.lives > 0 ? 'text-green-400' : 'text-red-500'}`}>{p2.lives} HP</div>
+                                </div>
+                            </div>
+                        </div>
+                        <Button onClick={startGame} className="w-full max-w-xs">Jogar Novamente</Button>
+                    </div>
+                );
+            }
+
+            if (phase === 'P1_WAIT' || phase === 'P2_WAIT') {
+                const isP1 = phase === 'P1_WAIT';
+                return (
+                    <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center space-y-8 bg-slate-900">
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-blue-500 blur-2xl opacity-20 rounded-full"></div>
+                            <div className="text-8xl relative z-10">📱</div>
+                        </div>
+                        <div>
+                            <h2 className="text-3xl font-bold text-white mb-2">
+                                Turno de <span className={isP1 ? "text-blue-400" : "text-pink-400"}>
+                                    {isP1 ? p1.name : p2.name}
+                                </span>
+                            </h2>
+                            <p className="text-slate-400 max-w-xs mx-auto">Passe o dispositivo. Certifique-se que o oponente não está olhando.</p>
+                        </div>
+                        <Button 
+                            onClick={() => setPhase(isP1 ? 'P1_TURN' : 'P2_TURN')}
+                            className="w-full max-w-xs py-4 text-xl"
+                            variant={isP1 ? 'primary' : 'warning'}
+                        >
+                            Estou Pronto
+                        </Button>
+                    </div>
+                );
+            }
+
+            if (phase === 'P1_TURN' || phase === 'P2_TURN') {
+                const isP1 = phase === 'P1_TURN';
+                const currentPlayer = isP1 ? p1 : p2;
+                const isDebt = currentPlayer.money < 0;
+                
+                return (
+                    <div className="min-h-screen flex flex-col p-3 max-w-md mx-auto">
+                        {/* Header Stats */}
+                        <div className="flex justify-between items-center mb-4 bg-slate-800/80 p-3 rounded-xl border border-slate-700 shadow-lg backdrop-blur-sm sticky top-2 z-30">
+                            <div>
+                                <h3 className={`font-bold text-lg ${isP1 ? 'text-blue-400' : 'text-pink-400'}`}>
+                                    {currentPlayer.name}
+                                </h3>
+                                <div className="text-xs text-slate-500 font-mono">RODADA {round}</div>
+                            </div>
+                            <div className="flex gap-2">
+                                <StatCard label="Vidas" value={currentPlayer.lives} icon="❤️" colorClass="text-red-500" />
+                                <StatCard label="Grana" value={`$${currentPlayer.money}`} icon="💰" colorClass={isDebt ? "text-red-400" : "text-green-400"} highlight={isDebt} />
+                            </div>
+                        </div>
+
+                        {isDebt && (
+                            <div className="bg-red-900/80 border border-red-500 text-white p-3 rounded-lg mb-2 text-sm text-center font-bold animate-pulse shadow-lg flex items-center justify-center gap-2">
+                                <span>⚠️ DÉBITO:</span> Só pode usar CLAP 👏
+                            </div>
+                        )}
+
+                        <div className="flex-grow overflow-y-auto">
+                            <div className="flex justify-between items-end px-1 mb-1">
+                                <h4 className="text-slate-400 text-xs font-bold uppercase tracking-widest">Escolha seu Ataque</h4>
+                                <span className="text-[10px] text-slate-600">Toque no (i) para detalhes</span>
+                            </div>
+                            {renderMoves(isP1 ? 1 : 2)}
+                        </div>
+
+                        <InfoModal move={viewingMove} onClose={() => setViewingMove(null)} />
+                    </div>
+                );
+            }
+
+            if (phase === 'RESOLVE') {
+                const m1 = getMoveData(p1Move);
+                const m2 = getMoveData(p2Move);
+
+                return (
+                    <div className="min-h-screen flex flex-col p-4 max-w-md mx-auto items-center justify-between py-8">
+                        <div className="w-full text-center">
+                            <h2 className="text-2xl font-black mb-8 text-yellow-400 tracking-[0.3em]">RESULTADO</h2>
+                            
+                            <div className="flex w-full justify-between items-center mb-8 relative">
+                                {/* Player 1 Reveal */}
+                                <div className="flex flex-col items-center flex-1 animate-slide-up" style={{animationDelay: '0.1s'}}>
+                                    <span className="text-blue-400 font-bold mb-2 text-xs tracking-widest">JOGADOR 1</span>
+                                    <div className={`relative w-24 h-24 flex items-center justify-center bg-slate-800 rounded-2xl border-4 ${m1.isEvo ? 'border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.4)]' : 'border-blue-600'}`}>
+                                        <span className="text-5xl">{m1.icon}</span>
+                                        {m1.isEvo && <span className="absolute -top-3 bg-yellow-400 text-black text-[10px] font-bold px-2 py-0.5 rounded-full">EVO</span>}
+                                    </div>
+                                    <span className="mt-2 font-bold text-sm text-slate-300">{m1.label}</span>
+                                </div>
+
+                                <div className="text-4xl font-black text-slate-700 absolute left-1/2 -translate-x-1/2">VS</div>
+
+                                {/* Player 2 Reveal */}
+                                <div className="flex flex-col items-center flex-1 animate-slide-up" style={{animationDelay: '0.3s'}}>
+                                    <span className="text-pink-400 font-bold mb-2 text-xs tracking-widest">JOGADOR 2</span>
+                                    <div className={`relative w-24 h-24 flex items-center justify-center bg-slate-800 rounded-2xl border-4 ${m2.isEvo ? 'border-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.4)]' : 'border-pink-600'}`}>
+                                        <span className="text-5xl">{m2.icon}</span>
+                                        {m2.isEvo && <span className="absolute -top-3 bg-yellow-400 text-black text-[10px] font-bold px-2 py-0.5 rounded-full">EVO</span>}
+                                    </div>
+                                    <span className="mt-2 font-bold text-sm text-slate-300">{m2.label}</span>
+                                </div>
+                            </div>
+
+                            {/* HP Status */}
+                            <div className="flex gap-4 mb-6">
+                                <div className="flex-1 bg-slate-800 p-3 rounded-lg border-l-4 border-blue-500 shadow-lg">
+                                    <div className="text-xs text-slate-400 uppercase">Vida P1</div>
+                                    <div className="text-2xl font-bold text-white flex items-center justify-center gap-1">
+                                        {p1.lives} <span className="text-red-500 text-base">❤️</span>
+                                    </div>
+                                </div>
+                                <div className="flex-1 bg-slate-800 p-3 rounded-lg border-r-4 border-pink-500 shadow-lg">
+                                    <div className="text-xs text-slate-400 uppercase">Vida P2</div>
+                                    <div className="text-2xl font-bold text-white flex items-center justify-center gap-1">
+                                        {p2.lives} <span className="text-red-500 text-base">❤️</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Battle Logs */}
+                        <div className="w-full flex-1 bg-slate-900/50 p-4 rounded-xl border border-slate-700/50 font-mono text-xs space-y-2 overflow-y-auto mb-4 max-h-48 shadow-inner">
+                            {logs.slice(0, 6).map((log, i) => (
+                                <div key={i} className={`pb-1 border-b border-slate-800 last:border-0 ${i === 0 ? 'text-white font-bold' : 'text-slate-500'}`}>
+                                    {i===0 ? '> ' : ''}{log}
+                                </div>
+                            ))}
+                        </div>
+
+                        <Button onClick={nextRound} className="w-full py-4 text-xl shadow-xl hover:translate-y-[-2px]">
+                            Próxima Rodada ➔
+                        </Button>
+                    </div>
+                );
+            }
+
+            return null;
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
