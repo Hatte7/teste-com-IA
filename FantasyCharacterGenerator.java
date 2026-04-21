@@ -229,7 +229,7 @@ public class FantasyCharacterGenerator {
         String nome;
         String rank;
         String classe;
-        int[] a;
+        int[] atributos;
         Weapon arma;
         int magia;
         int espirito;
@@ -242,13 +242,13 @@ public class FantasyCharacterGenerator {
         int fama;
         int resistencia;
 
-        CharacterProfile(String nome, String rank, String classe, int[] a, Weapon arma,
+        CharacterProfile(String nome, String rank, String classe, int[] atributos, Weapon arma,
                          int magia, int espirito, int aura, String foco, String feitico,
                          String invocacao, String tecnica, int moral, int fama, int resistencia) {
             this.nome = nome;
             this.rank = rank;
             this.classe = classe;
-            this.a = a;
+            this.atributos = atributos;
             this.arma = arma;
             this.magia = magia;
             this.espirito = espirito;
@@ -265,8 +265,8 @@ public class FantasyCharacterGenerator {
         String formatar() {
             return "Nome: " + nome + "\n" +
                 "Rank: " + rank + " | Classe: " + classe + "\n" +
-                "Atributos -> Força: " + a[0] + ", Carisma: " + a[1] + ", Destreza: " + a[2] +
-                ", Presença: " + a[3] + ", Empatia: " + a[4] + ", Mana: " + a[5] + "\n" +
+                "Atributos -> Força: " + atributos[0] + ", Carisma: " + atributos[1] + ", Destreza: " + atributos[2] +
+                ", Presença: " + atributos[3] + ", Empatia: " + atributos[4] + ", Mana: " + atributos[5] + "\n" +
                 "Manifestação -> " + foco + " | Magia: " + magia + ", Espírito: " + espirito + ", Aura: " + aura + "\n" +
                 "Kit de combate -> Feitiço: " + feitico + " | Invocação: " + invocacao + " | Técnica: " + tecnica + "\n" +
                 "Arma: " + arma.nome + " (Dano: " + arma.dano + ", Alcance: " + arma.alcance +
